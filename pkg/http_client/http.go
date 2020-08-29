@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/dungnh3/gokit/log/level"
+	"github.com/dungnh3/gokit/pkg/log/level"
 	"github.com/jinzhu/copier"
 	"io/ioutil"
 	"net/http"

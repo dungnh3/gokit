@@ -2,7 +2,7 @@ package level
 
 import (
 	"context"
-	"github.com/dungnh3/gokit/log"
+	"github.com/dungnh3/gokit/pkg/log"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
