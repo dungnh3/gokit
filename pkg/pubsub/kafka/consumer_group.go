@@ -11,19 +11,19 @@ import (
 )
 
 type consumerGroup struct {
-	ctx            context.Context
-	topic          string
-	name           string
-	retryPublisher *producer
-	dlqPublisher   *producer
-	cg             sarama.ConsumerGroup
-	cgh            sarama.ConsumerGroupHandler
+	ctx                        context.Context
+	topic                      string
+	name                       string
+	retryProducer              *producer
+	dlqProducer                *producer
+	saramaConsumerGroup        sarama.ConsumerGroup
+	saramaConsumerGroupHandler sarama.ConsumerGroupHandler
 }
 
 func (cg *consumerGroup) Consume(ctx context.Context, topics []string, handler sarama.ConsumerGroupHandler) error {
 	go func() {
 		for {
-			if err := cg.cg.Consume(ctx, topics, handler); err != nil {
+			if err := cg.saramaConsumerGroup.Consume(ctx, topics, handler); err != nil {
 				log.Panicf("error from consumer: %v", err)
 			}
 			if ctx.Err() != nil {
@@ -40,12 +40,12 @@ func (cg *consumerGroup) Errors() <-chan error {
 
 func (cg *consumerGroup) Close() []error {
 	var errs []error
-	errs = append(errs, cg.retryPublisher.Close(), cg.dlqPublisher.Close(), cg.cg.Close())
+	errs = append(errs, cg.retryProducer.Close(), cg.dlqProducer.Close(), cg.saramaConsumerGroup.Close())
 	return errs
 }
 
 func (cg *consumerGroup) Start() error {
-	return cg.Consume(cg.ctx, strings.Split(cg.topic, ","), cg.cgh)
+	return cg.Consume(cg.ctx, strings.Split(cg.topic, ","), cg.saramaConsumerGroupHandler)
 }
 
 func newConsumerGroup(ctx context.Context, cfg *sarama.Config, brokers []string, topic string, groupID string, handler sarama.ConsumerGroupHandler) (*consumerGroup, error) {
@@ -54,8 +54,8 @@ func newConsumerGroup(ctx context.Context, cfg *sarama.Config, brokers []string,
 	cg.ctx = ctx
 	cg.topic = topic
 	cg.name = "consumer_" + topic
-	cg.cgh = handler
-	cg.cg, err = sarama.NewConsumerGroup(brokers, groupID, cfg)
+	cg.saramaConsumerGroupHandler = handler
+	cg.saramaConsumerGroup, err = sarama.NewConsumerGroup(brokers, groupID, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +72,8 @@ func NewKafkaConsumerGroup(cfg *ConsumerConfig, groupID string, handler func(msg
 	var err error
 	kafkaConsumerGroup := new(kafkaConsumerGroup)
 
-	if cfg.Config == nil {
-		cfg.Config = sarama.NewConfig()
+	if cfg.saramaConfig == nil {
+		cfg.saramaConfig = sarama.NewConfig()
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -85,9 +85,9 @@ func NewKafkaConsumerGroup(cfg *ConsumerConfig, groupID string, handler func(msg
 
 	// TODO: create retry publisher to push msg into retry topic
 	retryPublisher, err := NewPublisher(&ProducerConfig{
-		Brokers: cfg.BrokersRetry,
-		Topic:   retryTopic,
-		Config:  cfg.Config,
+		Brokers:      cfg.BrokersRetry,
+		Topic:        retryTopic,
+		saramaConfig: cfg.saramaConfig,
 	})
 	if err != nil {
 		return nil, err
@@ -95,9 +95,9 @@ func NewKafkaConsumerGroup(cfg *ConsumerConfig, groupID string, handler func(msg
 
 	// TODO: create dlq publisher to push msg into dlq topic
 	dlqPublisher, err := NewPublisher(&ProducerConfig{
-		Brokers: cfg.BrokersDLQ,
-		Topic:   dlqTopic,
-		Config:  cfg.Config,
+		Brokers:      cfg.BrokersDLQ,
+		Topic:        dlqTopic,
+		saramaConfig: cfg.saramaConfig,
 	})
 	if err != nil {
 		return nil, err
@@ -105,13 +105,13 @@ func NewKafkaConsumerGroup(cfg *ConsumerConfig, groupID string, handler func(msg
 
 	// TODO: create new consumer group
 	consumerGroupHandler := &consumerGroupHandler{
-		ctx:            ctx,
-		maxRetry:       cfg.MaxRetry,
-		retryPublisher: retryPublisher,
-		dlqPublisher:   dlqPublisher,
-		handler:        handler,
+		ctx:           ctx,
+		maxRetry:      cfg.MaxRetry,
+		retryProducer: retryPublisher,
+		dlqProducer:   dlqPublisher,
+		handler:       handler,
 	}
-	consumerGroup, err := newConsumerGroup(ctx, cfg.Config, cfg.Brokers, cfg.Topic, groupID, consumerGroupHandler)
+	consumerGroup, err := newConsumerGroup(ctx, cfg.saramaConfig, cfg.Brokers, cfg.Topic, groupID, consumerGroupHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func NewKafkaConsumerGroup(cfg *ConsumerConfig, groupID string, handler func(msg
 	consumerGroupRetryHandler := &consumerGroupRetryHandler{
 		consumerGroupHandler: consumerGroupHandler,
 	}
-	consumerGroupRetry, err := newConsumerGroup(ctx, cfg.Config, cfg.BrokersRetry, retryTopic, groupID+"_retry", consumerGroupRetryHandler)
+	consumerGroupRetry, err := newConsumerGroup(ctx, cfg.saramaConfig, cfg.BrokersRetry, retryTopic, groupID+"_retry", consumerGroupRetryHandler)
 	if err != nil {
 		return nil, err
 	}

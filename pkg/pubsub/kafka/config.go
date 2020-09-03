@@ -24,11 +24,11 @@ var (
 )
 
 type ProducerConfig struct {
-	Brokers   []string
-	Topic     string
-	MaxRetry  int
-	Partition int32
-	Config    *sarama.Config
+	Brokers      []string
+	Topic        string
+	MaxRetry     int
+	Partition    int32
+	saramaConfig *sarama.Config
 }
 
 type ConsumerConfig struct {
@@ -37,5 +37,5 @@ type ConsumerConfig struct {
 	BrokersDLQ   []string
 	Topic        string
 	MaxRetry     int
-	Config       *sarama.Config
+	saramaConfig *sarama.Config
 }

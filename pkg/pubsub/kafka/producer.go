@@ -10,8 +10,8 @@ import (
 // producer is an experimental Publisher that provides an implementation for
 // Kafka using the Shopify/sarama library.
 type producer struct {
-	p     sarama.SyncProducer
-	topic string
+	saramaProducer sarama.SyncProducer
+	topic          string
 }
 
 // NewPublisher will initiate a new experimental Kafka producer.
@@ -28,7 +28,7 @@ func NewPublisher(cfg *ProducerConfig) (*producer, error) {
 	p := new(producer)
 	p.topic = cfg.Topic
 
-	sconfig := cfg.Config
+	sconfig := cfg.saramaConfig
 	if sconfig == nil {
 		sconfig = sarama.NewConfig()
 		sconfig.Version = sarama.V2_4_0_0
@@ -39,7 +39,7 @@ func NewPublisher(cfg *ProducerConfig) (*producer, error) {
 	if sconfig.Producer.Retry.Max == 0 {
 		sconfig.Producer.Retry.Max = 5
 	}
-	p.p, err = sarama.NewSyncProducer(cfg.Brokers, sconfig)
+	p.saramaProducer, err = sarama.NewSyncProducer(cfg.Brokers, sconfig)
 	return p, err
 }
 
@@ -51,12 +51,12 @@ func (p *producer) Publish(ctx context.Context, key []byte, msg []byte) error {
 		Value:     sarama.ByteEncoder(msg),
 		Timestamp: time.Time{},
 	}
-	partition, offset, err := p.p.SendMessage(message)
+	partition, offset, err := p.saramaProducer.SendMessage(message)
 	log.Printf("Message is stored in topic(%v)/partition(%v)/offset(%v) \n", p.topic, partition, offset)
 	return err
 }
 
 // Close ..
 func (p *producer) Close() error {
-	return p.p.Close()
+	return p.saramaProducer.Close()
 }

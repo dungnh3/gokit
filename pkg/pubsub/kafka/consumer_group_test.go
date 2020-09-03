@@ -17,13 +17,13 @@ func init() {
 		BrokersDLQ:   []string{"127.0.0.1:9092"},
 		Topic:        "sample_topic",
 		MaxRetry:     3,
-		Config:       sarama.NewConfig(),
+		saramaConfig: sarama.NewConfig(),
 	}
 }
 
 func TestNewKafkaConsumerGroup(t *testing.T) {
-	consumerConfig.Config.Version = sarama.V2_4_0_0
-	consumerConfig.Config.Consumer.Offsets.Initial = sarama.OffsetNewest
+	consumerConfig.saramaConfig.Version = sarama.V2_4_0_0
+	consumerConfig.saramaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
 	consumerGroups, err := NewKafkaConsumerGroup(consumerConfig, "sample_group", processDLQ)
 	if err != nil {
 		return

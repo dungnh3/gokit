@@ -7,7 +7,7 @@ type MetaData struct {
 	CounterRetry int `json:"counter_retry"`
 }
 
-type ConsumerMessage struct {
-	MetaData MetaData                `json:"meta_data"`
-	Msg      *sarama.ConsumerMessage `json:"msg"`
+type consumerMessage struct {
+	MetaData              MetaData                `json:"meta_data"`
+	saramaConsumerMessage *sarama.ConsumerMessage `json:"msg"`
 }
