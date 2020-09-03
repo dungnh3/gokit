@@ -36,7 +36,7 @@ func (cgh *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSessio
 				consumerMsg := &ConsumerMessage{
 					MetaData: MetaData{
 						MaxRetry:     cgh.maxRetry,
-						CounterRetry: 0,
+						CounterRetry: 1,
 					},
 					Msg: msg,
 				}
