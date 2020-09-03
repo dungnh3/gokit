@@ -5,34 +5,37 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-var (
-	RequiredAcks = sarama.WaitForAll
-
-	ErrTopicIsRequired = errors.New("topic name is required")
+const (
+	RetryTopic    = "%v_%v"
+	ConsumerGroup = "%v_%v"
 )
 
-// Config is the configured files may be in kafka producer or consumer
-type Config struct {
-	// BrokerHost ..
-	BrokerHost struct {
-		// Cluster is a set of server kafka
-		Cluster []string
-		// ClusterRetry is a set of server kafka that is used to retry push message if error occur
-		ClusterRetry []string
-		// ClusterDLQ is a set of server kafka that is used to hold all message if error occur while consume error
-		// DLQ that 's mean dead letter queue
-		ClusterDLQ []string
-	}
+var (
+	// RequiredAcks will be used in Kafka configs
+	// to set the 'RequiredAcks' value.
+	RequireAcks = sarama.WaitForAll
 
-	// Topic ..
-	Topic []string
+	// ErrTopicNameIsRequired ..
+	ErrBrokerHostIsRequired = errors.New("broker host is required")
+	// ErrTopicNameIsRequired ..
+	ErrTopicNameIsRequired = errors.New("topic name is required")
+	// ErrChannelMsgIsClosed ..
+	ErrChannelMsgIsClosed = errors.New("channel message is close")
+)
 
-	// MaxRetry ..
-	MaxRetry int
-
-	// Partition ..
+type ProducerConfig struct {
+	Brokers   []string
+	Topic     string
+	MaxRetry  int
 	Partition int32
+	Config    *sarama.Config
+}
 
-	// Config ..
-	Config *sarama.Config
+type ConsumerConfig struct {
+	Brokers      []string
+	BrokersRetry []string
+	BrokersDLQ   []string
+	Topic        string
+	MaxRetry     int
+	Config       *sarama.Config
 }

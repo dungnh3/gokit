@@ -3,43 +3,60 @@ package kafka
 import (
 	"context"
 	"github.com/Shopify/sarama"
-	"github.com/dungnh3/gokit/pkg/log/level"
+	"log"
+	"time"
 )
 
-type Publisher struct {
-	producer sarama.SyncProducer
-	topic    string
+// producer is an experimental Publisher that provides an implementation for
+// Kafka using the Shopify/sarama library.
+type producer struct {
+	p     sarama.SyncProducer
+	topic string
 }
 
-func NewPublisher(cfg *Config) (*Publisher, error) {
-	if len(cfg.Topic) == 0 {
-		return nil, ErrTopicIsRequired
-	}
-	p := new(Publisher)
-	p.topic = cfg.Topic[0]
-
-	if cfg.Config == nil {
-		cfg.Config = sarama.NewConfig()
-	}
-	cfg.Config.Producer.Retry.Max = cfg.MaxRetry
-	cfg.Config.Producer.RequiredAcks = sarama.WaitForAll
-	cfg.Config.Producer.Return.Successes = true
+// NewPublisher will initiate a new experimental Kafka producer.
+func NewPublisher(cfg *ProducerConfig) (*producer, error) {
 	var err error
-	p.producer, err = sarama.NewSyncProducer(cfg.BrokerHost.Cluster, cfg.Config)
+
+	if len(cfg.Brokers) == 0 {
+		return nil, ErrBrokerHostIsRequired
+	}
+
+	if len(cfg.Topic) == 0 {
+		return nil, ErrTopicNameIsRequired
+	}
+	p := new(producer)
+	p.topic = cfg.Topic
+
+	sconfig := cfg.Config
+	if sconfig == nil {
+		sconfig = sarama.NewConfig()
+		sconfig.Version = sarama.V2_4_0_0
+		sconfig.Producer.Retry.Max = cfg.MaxRetry
+		sconfig.Producer.RequiredAcks = sarama.WaitForAll
+	}
+	sconfig.Producer.Return.Successes = true
+	if sconfig.Producer.Retry.Max == 0 {
+		sconfig.Producer.Retry.Max = 5
+	}
+	p.p, err = sarama.NewSyncProducer(cfg.Brokers, sconfig)
 	return p, err
 }
 
-func (p *Publisher) Publish(ctx context.Context, key string, value []byte) error {
-	msg := &sarama.ProducerMessage{
-		Topic: p.topic,
-		Key:   sarama.StringEncoder(key),
-		Value: sarama.ByteEncoder(value),
+// PublishRaw ..
+func (p *producer) Publish(ctx context.Context, key []byte, msg []byte) error {
+	message := &sarama.ProducerMessage{
+		Topic:     p.topic,
+		Key:       sarama.ByteEncoder(key),
+		Value:     sarama.ByteEncoder(msg),
+		Timestamp: time.Time{},
 	}
-	partition, offset, err := p.producer.SendMessage(msg)
-	if err != nil {
-		level.Error(ctx).F("publish message into %v topic failed, error %v", err)
-		return err
-	}
-	level.Info(ctx).F("publish message into %v topic, %v partition, %v offset success", p.topic, partition, offset)
-	return nil
+	partition, offset, err := p.p.SendMessage(message)
+	log.Printf("Message is stored in topic(%v)/partition(%v)/offset(%v) \n", p.topic, partition, offset)
+	return err
+}
+
+// Close ..
+func (p *producer) Close() error {
+	return p.p.Close()
 }
