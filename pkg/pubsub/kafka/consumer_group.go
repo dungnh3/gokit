@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"errors"
 	"github.com/Shopify/sarama"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"syscall"
 )
 
+// consumerGroup
 type consumerGroup struct {
 	ctx                        context.Context
 	topic                      string
@@ -38,10 +40,17 @@ func (cg *consumerGroup) Errors() <-chan error {
 	return nil
 }
 
-func (cg *consumerGroup) Close() []error {
+func (cg *consumerGroup) Close() error {
 	var errs []error
+	var errStr string
 	errs = append(errs, cg.retryProducer.Close(), cg.dlqProducer.Close(), cg.saramaConsumerGroup.Close())
-	return errs
+	if len(errs) != 0 {
+		for _, e := range errs {
+			errStr = errStr + "_" + e.Error()
+		}
+		return errors.New(errStr)
+	}
+	return nil
 }
 
 func (cg *consumerGroup) Start() error {
@@ -162,10 +171,10 @@ func (kcg *kafkaConsumerGroup) Start() {
 func (kcg *kafkaConsumerGroup) Stop() []error {
 	var errs []error
 	for index, _ := range kcg.consumerGroups {
-		kerrs := kcg.consumerGroups[index].Close()
-		if kerrs != nil {
-			log.Printf("stop consumer group failed, error %v \n", kerrs)
-			errs = append(errs, kerrs...)
+		err := kcg.consumerGroups[index].Close()
+		if err != nil {
+			log.Printf("stop consumer group failed, error %v \n", err)
+			errs = append(errs, err)
 		}
 	}
 	return errs

@@ -5,11 +5,6 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-const (
-	RetryTopic    = "%v_%v"
-	ConsumerGroup = "%v_%v"
-)
-
 var (
 	// RequiredAcks will be used in Kafka configs
 	// to set the 'RequiredAcks' value.
@@ -23,6 +18,7 @@ var (
 	ErrChannelMsgIsClosed = errors.New("channel message is close")
 )
 
+// ProducerConfig is a configuration for kafka producer
 type ProducerConfig struct {
 	Brokers      []string
 	Topic        string
@@ -31,6 +27,7 @@ type ProducerConfig struct {
 	saramaConfig *sarama.Config
 }
 
+// ConsumerConfig is a configuration for kafka consumer
 type ConsumerConfig struct {
 	Brokers      []string
 	BrokersRetry []string
