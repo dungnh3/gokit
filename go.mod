@@ -4,8 +4,9 @@ go 1.14
 
 require (
 	github.com/Shopify/sarama v1.27.2
+	github.com/gogo/protobuf v1.2.1
 	github.com/golang/snappy v0.0.2 // indirect
-	github.com/google/go-querystring v1.0.0 // indirect
+	github.com/google/go-querystring v1.0.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.1
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
 	github.com/klauspost/compress v1.11.4 // indirect
