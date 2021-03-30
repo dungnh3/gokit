@@ -3,60 +3,142 @@ package kafka
 import (
 	"context"
 	"github.com/Shopify/sarama"
-	"log"
+	"github.com/tikivn/ims-library/pkg/library/log"
+	"go.uber.org/zap"
 	"time"
 )
 
-// producer is an experimental Publisher that provides an implementation for
-// Kafka using the Shopify/sarama library.
-type producer struct {
+type publisher struct {
+	brokers        []string
+	logger         *zap.Logger
 	saramaProducer sarama.SyncProducer
-	topic          string
+	saramaConfig   *sarama.Config
 }
 
-// NewPublisher will initiate a new experimental Kafka producer.
-func NewPublisher(cfg *ProducerConfig) (*producer, error) {
-	var err error
+type publisherOption func(producer *publisher) error
 
-	if len(cfg.Brokers) == 0 {
-		return nil, ErrBrokerHostIsRequired
+func defaultProducerConfig() (*publisher, error) {
+	logger, err := log.DefaultConfig().Build()
+	if err != nil {
+		return nil, err
 	}
 
-	if len(cfg.Topic) == 0 {
-		return nil, ErrTopicNameIsRequired
-	}
-	p := new(producer)
-	p.topic = cfg.Topic
+	saramaConfig := sarama.NewConfig()
+	saramaConfig.Producer.Retry.Max = 5
+	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
+	saramaConfig.Producer.Return.Successes = true
 
-	sconfig := cfg.saramaConfig
-	if sconfig == nil {
-		sconfig = sarama.NewConfig()
-		sconfig.Version = sarama.V2_4_0_0
-		sconfig.Producer.Retry.Max = cfg.MaxRetry
-		sconfig.Producer.RequiredAcks = sarama.WaitForAll
-	}
-	sconfig.Producer.Return.Successes = true
-	if sconfig.Producer.Retry.Max == 0 {
-		sconfig.Producer.Retry.Max = 5
-	}
-	p.saramaProducer, err = sarama.NewSyncProducer(cfg.Brokers, sconfig)
-	return p, err
+	return &publisher{
+		brokers:        []string{"127.0.0.1:9092"},
+		logger:         logger,
+		saramaProducer: nil,
+		saramaConfig:   saramaConfig,
+	}, nil
 }
 
-// PublishRaw ..
-func (p *producer) Publish(ctx context.Context, key []byte, msg []byte) error {
-	message := &sarama.ProducerMessage{
-		Topic:     p.topic,
-		Key:       sarama.ByteEncoder(key),
-		Value:     sarama.ByteEncoder(msg),
+func NewPublisher(brokers []string, opts ...publisherOption) (*publisher, error) {
+	p, err := defaultProducerConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts, withBroker(brokers))
+	for _, opt := range opts {
+		_ = opt(p)
+	}
+	p.saramaProducer, err = sarama.NewSyncProducer(p.brokers, p.saramaConfig)
+	return p, nil
+}
+
+func withBroker(broker []string) publisherOption {
+	return func(p *publisher) error {
+		p.brokers = broker
+		return nil
+	}
+}
+
+func WithProducerConfig(config *sarama.Config) publisherOption {
+	return func(p *publisher) error {
+		p.saramaConfig = config
+		return nil
+	}
+}
+
+func (p *publisher) Publish(ctx context.Context, topic string, message []byte, opts ...publisherMessageOption) error {
+	msg := &sarama.ProducerMessage{
+		Topic:     topic,
+		Key:       nil,
+		Value:     nil,
+		Headers:   nil,
+		Metadata:  nil,
+		Offset:    0,
+		Partition: 0,
 		Timestamp: time.Time{},
 	}
-	partition, offset, err := p.saramaProducer.SendMessage(message)
-	log.Printf("Message is stored in topic(%v)/partition(%v)/offset(%v) \n", p.topic, partition, offset)
-	return err
+
+	opts = append(opts, withPublisherMsgValue(message))
+	for _, opt := range opts {
+		if err := opt(msg); err != nil {
+			return err
+		}
+	}
+
+	partition, offset, err := p.saramaProducer.SendMessage(msg)
+	if err != nil {
+		p.logger.Error("Publish message to topic failed",
+			zap.Any("with error", err),
+		)
+		return err
+	}
+	p.logger.Info("publish messages success with it's information",
+		zap.Any("topic", topic),
+		zap.Any("partition", partition),
+		zap.Any("offset", offset),
+	)
+	return nil
 }
 
-// Close ..
-func (p *producer) Close() error {
-	return p.saramaProducer.Close()
+type publisherMessageOption func(message *sarama.ProducerMessage) error
+
+func withPublisherMsgValue(message []byte) publisherMessageOption {
+	return func(msg *sarama.ProducerMessage) error {
+		msg.Value = sarama.ByteEncoder(message)
+		return nil
+	}
+}
+
+func WithPublisherMsgKey(key []byte) publisherMessageOption {
+	return func(msg *sarama.ProducerMessage) error {
+		msg.Key = sarama.ByteEncoder(key)
+		return nil
+	}
+}
+
+func WithPublisherMsgPartition(partition int32) publisherMessageOption {
+	return func(msg *sarama.ProducerMessage) error {
+		msg.Partition = partition
+		return nil
+	}
+}
+
+func WithPublisherMsgTimestamp(timestamp time.Time) publisherMessageOption {
+	return func(msg *sarama.ProducerMessage) error {
+		msg.Timestamp = timestamp
+		return nil
+	}
+}
+
+func WithPublisherMsgHeader(headers map[string]string) publisherMessageOption {
+	return func(msg *sarama.ProducerMessage) error {
+		recordHeaders := make([]sarama.RecordHeader, 0, len(headers))
+		for k, v := range headers {
+			rh := sarama.RecordHeader{
+				Key:   sarama.ByteEncoder(k),
+				Value: sarama.ByteEncoder(v),
+			}
+			recordHeaders = append(recordHeaders, rh)
+		}
+		msg.Headers = recordHeaders
+		return nil
+	}
 }
