@@ -100,12 +100,12 @@ func NewConsumerGroupSubscriber(opts ...ConsumerGroupOption) (pubsub.Subscriber,
 func defaultHandlerFuncWithError(cgs *consumerGroupSubscriber) {
 	if cgs.handlerFuncWithError == nil {
 		cgs.handlerFuncWithError = func(msg *sarama.ConsumerMessage) error {
-			topicRetry := cgs.topic + "_DLQ"
+			topicDLQ := cgs.topic + "_DLQ"
 			producer, err := NewPublisher(cgs.brokers)
 			if err != nil {
 				return err
 			}
-			err = producer.Publish(cgs.ctx, topicRetry, msg.Value, WithPublisherMsgKey(msg.Key))
+			err = producer.Publish(cgs.ctx, topicDLQ, msg.Value, WithPublisherMsgKey(msg.Key))
 			if err != nil {
 				return err
 			}
