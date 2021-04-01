@@ -2,15 +2,16 @@ package kafka
 
 import (
 	"context"
-	"github.com/Shopify/sarama"
-	"github.com/tikivn/ims-library/pkg/library/log"
-	"github.com/tikivn/ims-library/pkg/library/pubsub"
-	"go.uber.org/zap"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/Shopify/sarama"
+	"github.com/tikivn/ims-library/pkg/library/log"
+	"github.com/tikivn/ims-library/pkg/library/pubsub"
+	"go.uber.org/zap"
 )
 
 // handlerFunc is a function which will be assign from our request. It's responsibility
@@ -99,7 +100,7 @@ func NewConsumerGroupSubscriber(opts ...ConsumerGroupOption) (pubsub.Subscriber,
 func defaultHandlerFuncWithError(cgs *consumerGroupSubscriber) {
 	if cgs.handlerFuncWithError == nil {
 		cgs.handlerFuncWithError = func(msg *sarama.ConsumerMessage) error {
-			topicRetry := cgs.topic + "_RETRY"
+			topicRetry := cgs.topic + "_DLQ"
 			producer, err := NewPublisher(cgs.brokers)
 			if err != nil {
 				return err
